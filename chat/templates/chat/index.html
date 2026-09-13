@@ -1,0 +1,82 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AI Chat</title>
+    <link rel="stylesheet" href="{% static 'chat/style.css' %}">
+</head>
+
+<body>
+
+<h1>Chat with AI...</h1>
+<div id="messages"></div>
+<input type="text" id="messageInput" placeholder="what is on your mind...">
+<button onclick="sendMessage()">Send</button>
+
+<script>
+    const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/");
+
+    socket.onopen = function (event) {console.log("WebSocket connected.");};
+
+    let currentAiMessage = null;
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        const messages = document.getElementById("messages");
+
+        if (data.reason === "connection"){
+            const div = document.createElement("div");
+            div.classList.add("server", "message");
+            div.textContent = data.message;
+            messages.appendChild(div);
+            return;
+        }
+
+        if (data.reason === "start"){
+            currentAiMessage = document.createElement("div");
+            currentAiMessage.classList.add("message", "server");
+            messages.appendChild(currentAiMessage);
+            return;
+        }
+
+        if (data.reason === "end"){
+            currentAiMessage = null;
+            return;
+        }
+
+        if (data.reason === "chunk"){
+            if (currentAiMessage) {
+                currentAiMessage.textContent += data.message;
+            }
+            return;
+        }
+
+        if (data.reason === "error"){
+            const div = document.createElement("div");
+            div.classList.add("server", "message");
+            div.textContent = "Error: " + data.message;
+            messages.appendChild(div);
+            currentAiMessage = null;
+        }
+    };
+
+    socket.onclose = function(event) {console.log("WebSocket disconnected.");};
+
+    function sendMessage(){
+        const input = document.getElementById("messageInput");
+        const message = input.value.trim();
+        if (!message) {return ;}
+
+        const messages = document.getElementById("messages");
+        const div = document.createElement("div");
+        div.classList.add("message", "user");
+        div.textContent = message;
+        messages.appendChild(div);
+
+        socket.send(JSON.stringify({message: message}));
+        input.value = "";
+    }
+
+</script>
+</body>
+</html>
